@@ -54,7 +54,16 @@ export default function App() {
     const cache = localStorage.getItem('poupanca_data_cache');
     if (cache) {
       try {
-        setLancamentos(JSON.parse(cache));
+        const parsed = JSON.parse(cache);
+        if (Array.isArray(parsed)) {
+          // Sanitize data to ensure numbers
+          const sanitized = parsed.map((l: any) => ({
+            ...l,
+            mes: Number(l.mes),
+            valor: Number(l.valor)
+          }));
+          setLancamentos(sanitized);
+        }
       } catch (e) {
         console.error('Error parsing cache:', e);
       }
@@ -121,11 +130,11 @@ export default function App() {
     event.target.value = ''; // Reset input
   };
 
-  const totalPoupado = useMemo(() => lancamentos.reduce((acc, curr) => acc + curr.valor, 0), [lancamentos]);
+  const totalPoupado = useMemo(() => lancamentos.reduce((acc, curr) => acc + Number(curr.valor), 0), [lancamentos]);
   const progressoTotal = (totalPoupado / META_TOTAL) * 100;
   const mesesConcluidos = useMemo(() => {
     return CRONOGRAMA.filter(item => {
-      const totalMes = lancamentos.filter(l => l.mes === item.mes).reduce((acc, curr) => acc + curr.valor, 0);
+      const totalMes = lancamentos.filter(l => Number(l.mes) === Number(item.mes)).reduce((acc, curr) => acc + Number(curr.valor), 0);
       return totalMes >= item.valor;
     }).length;
   }, [lancamentos]);
@@ -374,7 +383,7 @@ const MonthCard: React.FC<MonthCardProps> = ({ item, lancamentos, onAdd, onDelet
   const [inputValue, setInputValue] = useState('');
   const [expanded, setExpanded] = useState(false);
   
-  const totalPoupado = lancamentos.reduce((acc, curr) => acc + curr.valor, 0);
+  const totalPoupado = lancamentos.reduce((acc, curr) => acc + Number(curr.valor), 0);
   const isCompleted = totalPoupado >= item.valor;
   const percentual = (totalPoupado / item.valor) * 100;
 
