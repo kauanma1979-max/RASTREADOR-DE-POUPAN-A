@@ -130,11 +130,17 @@ export default function App() {
     event.target.value = ''; // Reset input
   };
 
-  const totalPoupado = useMemo(() => lancamentos.reduce((acc, curr) => acc + Number(curr.valor), 0), [lancamentos]);
+  const totalPoupado = useMemo(() => {
+    return lancamentos.reduce((acc, curr) => acc + Number(curr.valor), 0);
+  }, [lancamentos]);
+
   const progressoTotal = (totalPoupado / META_TOTAL) * 100;
+
   const mesesConcluidos = useMemo(() => {
     return CRONOGRAMA.filter(item => {
-      const totalMes = lancamentos.filter(l => Number(l.mes) === Number(item.mes)).reduce((acc, curr) => acc + Number(curr.valor), 0);
+      const totalMes = lancamentos
+        .filter(l => Number(l.mes) === Number(item.mes))
+        .reduce((acc, curr) => acc + Number(curr.valor), 0);
       return totalMes >= item.valor;
     }).length;
   }, [lancamentos]);
@@ -216,9 +222,9 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {CRONOGRAMA.map((item, idx) => (
                 <MonthCard 
-                  key={item.mes}
+                  key={`${item.mes}-${lancamentos.length}`} // Key helps force re-render if needed, though state change should handle it
                   item={item}
-                  lancamentos={lancamentos.filter(l => l.mes === item.mes)}
+                  lancamentos={lancamentos.filter(l => Number(l.mes) === Number(item.mes))}
                   onAdd={handleAddLancamento}
                   onDelete={handleDeleteLancamento}
                   index={idx}
@@ -383,7 +389,10 @@ const MonthCard: React.FC<MonthCardProps> = ({ item, lancamentos, onAdd, onDelet
   const [inputValue, setInputValue] = useState('');
   const [expanded, setExpanded] = useState(false);
   
-  const totalPoupado = lancamentos.reduce((acc, curr) => acc + Number(curr.valor), 0);
+  const totalPoupado = useMemo(() => {
+    return lancamentos.reduce((acc, curr) => acc + Number(curr.valor), 0);
+  }, [lancamentos]);
+  
   const isCompleted = totalPoupado >= item.valor;
   const percentual = (totalPoupado / item.valor) * 100;
 
