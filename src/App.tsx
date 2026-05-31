@@ -92,18 +92,18 @@ interface Toast {
 }
 
 const CRONOGRAMA = [
-  { mes: 1, valor: 75, nome: 'Jan' },
-  { mes: 2, valor: 100, nome: 'Fev' },
-  { mes: 3, valor: 125, nome: 'Mar' },
-  { mes: 4, valor: 150, nome: 'Abr' },
-  { mes: 5, valor: 175, nome: 'Mai' },
-  { mes: 6, valor: 200, nome: 'Jun' },
-  { mes: 7, valor: 225, nome: 'Jul' },
-  { mes: 8, valor: 250, nome: 'Ago' },
-  { mes: 9, valor: 275, nome: 'Set' },
-  { mes: 10, valor: 300, nome: 'Out' },
-  { mes: 11, valor: 325, nome: 'Nov' },
-  { mes: 12, valor: 300, nome: 'Dez' }
+  { mes: 1, valor: 75, nome: 'Janeiro' },
+  { mes: 2, valor: 100, nome: 'Fevereiro' },
+  { mes: 3, valor: 125, nome: 'Março' },
+  { mes: 4, valor: 150, nome: 'Abril' },
+  { mes: 5, valor: 175, nome: 'Maio' },
+  { mes: 6, valor: 200, nome: 'Junho' },
+  { mes: 7, valor: 225, nome: 'Julho' },
+  { mes: 8, valor: 250, nome: 'Agosto' },
+  { mes: 9, valor: 275, nome: 'Setembro' },
+  { mes: 10, valor: 300, nome: 'Outubro' },
+  { mes: 11, valor: 325, nome: 'Novembro' },
+  { mes: 12, valor: 300, nome: 'Dezembro' }
 ];
 
 const META_TOTAL = 2500;
@@ -383,6 +383,7 @@ export default function App() {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                    tickFormatter={(value) => value.substring(0, 3)}
                     dy={10}
                   />
                   <YAxis 
@@ -690,7 +691,6 @@ const MonthCard: React.FC<MonthCardProps> = ({ item, lancamentos, onAdd, onDelet
       <div className="flex items-center justify-between mb-4">
         <div>
           <h4 className="text-lg font-bold">{item.nome}</h4>
-          <p className="text-xs text-slate-500">Cronograma {item.mes}</p>
         </div>
         {isCompleted ? (
           <div className="bg-green-500 text-white p-2 rounded-full shadow-lg shadow-green-200">
