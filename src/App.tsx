@@ -17,10 +17,66 @@ import {
   CheckCircle2, 
   RefreshCw, 
   Eye, 
-  EyeOff 
+  EyeOff,
+  Trophy,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area,
+  BarChart,
+  Bar
+} from 'recharts';
+import confetti from 'canvas-confetti';
 import { cn } from './utils';
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-2xl backdrop-blur-md">
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">{label}</p>
+        <div className="space-y-2">
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center justify-between gap-8">
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-1.5 h-1.5 rounded-full" 
+                  style={{ backgroundColor: entry.name === 'acumulado' ? '#3b82f6' : '#94a3b8' }} 
+                />
+                <span className="text-slate-300 text-[11px] font-medium">
+                  {entry.name === 'acumulado' ? 'Patrimônio' : 'Meta Esperada'}
+                </span>
+              </div>
+              <span className="text-white text-xs font-black">
+                R$ {entry.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          ))}
+        </div>
+        {payload.length > 1 && (
+          <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between">
+            <span className="text-slate-500 text-[9px] font-black uppercase">Status</span>
+            <span className={cn(
+              "text-[9px] font-black px-1.5 py-0.5 rounded",
+              payload[0].value >= payload[1].value ? "bg-green-500/10 text-green-400" : "bg-amber-500/10 text-amber-400"
+            )}>
+              {payload[0].value >= payload[1].value ? 'EM DIA' : 'PENDENTE'}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
 
 interface Lancamento {
   id: string;
@@ -29,26 +85,38 @@ interface Lancamento {
   data: string;
 }
 
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'info' | 'error';
+}
+
 const CRONOGRAMA = [
-  { mes: 1, valor: 75, nome: 'Janeiro' },
-  { mes: 2, valor: 100, nome: 'Fevereiro' },
-  { mes: 3, valor: 125, nome: 'Março' },
-  { mes: 4, valor: 150, nome: 'Abril' },
-  { mes: 5, valor: 175, nome: 'Maio' },
-  { mes: 6, valor: 200, nome: 'Junho' },
-  { mes: 7, valor: 225, nome: 'Julho' },
-  { mes: 8, valor: 250, nome: 'Agosto' },
-  { mes: 9, valor: 275, nome: 'Setembro' },
-  { mes: 10, valor: 300, nome: 'Outubro' },
-  { mes: 11, valor: 325, nome: 'Novembro' },
-  { mes: 12, valor: 300, nome: 'Dezembro' }
+  { mes: 1, valor: 75, nome: 'Jan' },
+  { mes: 2, valor: 100, nome: 'Fev' },
+  { mes: 3, valor: 125, nome: 'Mar' },
+  { mes: 4, valor: 150, nome: 'Abr' },
+  { mes: 5, valor: 175, nome: 'Mai' },
+  { mes: 6, valor: 200, nome: 'Jun' },
+  { mes: 7, valor: 225, nome: 'Jul' },
+  { mes: 8, valor: 250, nome: 'Ago' },
+  { mes: 9, valor: 275, nome: 'Set' },
+  { mes: 10, valor: 300, nome: 'Out' },
+  { mes: 11, valor: 325, nome: 'Nov' },
+  { mes: 12, valor: 300, nome: 'Dez' }
 ];
 
 const META_TOTAL = 2500;
 
 export default function App() {
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [celebratedMonths, setCelebratedMonths] = useState<number[]>(() => {
+    const saved = localStorage.getItem('celebrated_months');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [showSettings, setShowSettings] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [showCelebrationModal, setShowCelebrationModal] = useState<{ show: boolean, month: string } | null>(null);
 
   useEffect(() => {
     const cache = localStorage.getItem('poupanca_data_cache');
@@ -56,7 +124,6 @@ export default function App() {
       try {
         const parsed = JSON.parse(cache);
         if (Array.isArray(parsed)) {
-          // Sanitize data to ensure numbers
           const sanitized = parsed.map((l: any) => ({
             ...l,
             mes: Number(l.mes),
@@ -70,6 +137,45 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('celebrated_months', JSON.stringify(celebratedMonths));
+  }, [celebratedMonths]);
+
+  const addToast = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
+    const id = crypto.randomUUID();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
+
+  const checkCelebration = (mes: number, currentLancamentos: Lancamento[]) => {
+    if (celebratedMonths.includes(mes)) return;
+
+    const meta = CRONOGRAMA.find(c => c.mes === mes);
+    if (!meta) return;
+
+    const totalMes = currentLancamentos
+      .filter(l => Number(l.mes) === mes)
+      .reduce((acc, curr) => acc + Number(curr.valor), 0);
+
+    if (totalMes >= meta.valor) {
+      setCelebratedMonths(prev => [...prev, mes]);
+      triggerCelebration(meta.nome);
+    }
+  };
+
+  const triggerCelebration = (monthName: string) => {
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#2563eb', '#9333ea', '#10b981', '#f59e0b']
+    });
+    setShowCelebrationModal({ show: true, month: monthName });
+    addToast(`Parabéns! Meta de ${monthName} atingida! 🥳`, 'success');
+  };
+
   const handleAddLancamento = (mes: number, valor: number) => {
     const newLancamento: Lancamento = {
       id: crypto.randomUUID(),
@@ -81,18 +187,30 @@ export default function App() {
     const newLancamentos = [...lancamentos, newLancamento];
     setLancamentos(newLancamentos);
     localStorage.setItem('poupanca_data_cache', JSON.stringify(newLancamentos));
+    addToast('Lançamento adicionado!', 'info');
+    
+    checkCelebration(mes, newLancamentos);
+    
+    // Total progress celebration
+    const total = newLancamentos.reduce((acc, curr) => acc + Number(curr.valor), 0);
+    if (total >= META_TOTAL && !celebratedMonths.includes(100)) {
+      setCelebratedMonths(prev => [...prev, 100]);
+      triggerCelebration('Meta Total de R$ 2.500,00');
+    }
   };
 
   const handleDeleteLancamento = (id: string) => {
     const newLancamentos = lancamentos.filter(l => l.id !== id);
     setLancamentos(newLancamentos);
     localStorage.setItem('poupanca_data_cache', JSON.stringify(newLancamentos));
+    addToast('Lançamento removido', 'info');
   };
 
   const handleExportBackup = () => {
     const backupData = {
       timestamp: new Date().toISOString(),
       lancamentos: lancamentos,
+      celebratedMonths,
       version: '2.0-react'
     };
 
@@ -103,6 +221,7 @@ export default function App() {
     link.download = `poupanca_backup_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
+    addToast('Backup exportado com sucesso!', 'success');
   };
 
   const handleRestoreBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,18 +235,19 @@ export default function App() {
         if (content.lancamentos && Array.isArray(content.lancamentos)) {
           if (confirm('Deseja substituir os dados atuais pelos do backup?')) {
             setLancamentos(content.lancamentos);
+            if (content.celebratedMonths) setCelebratedMonths(content.celebratedMonths);
             localStorage.setItem('poupanca_data_cache', JSON.stringify(content.lancamentos));
-            alert('✅ Backup restaurado com sucesso!');
+            addToast('Backup restaurado!', 'success');
           }
         } else {
-          alert('❌ Arquivo de backup inválido.');
+          addToast('Arquivo de backup inválido', 'error');
         }
       } catch (err) {
-        alert('❌ Erro ao ler o arquivo JSON.');
+        addToast('Erro ao ler arquivo JSON', 'error');
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset input
+    event.target.value = '';
   };
 
   const totalPoupado = useMemo(() => {
@@ -145,10 +265,27 @@ export default function App() {
     }).length;
   }, [lancamentos]);
 
+  const chartData = useMemo(() => {
+    let accumulated = 0;
+    return CRONOGRAMA.map(item => {
+      const totalMes = lancamentos
+        .filter(l => Number(l.mes) === item.mes)
+        .reduce((acc, curr) => acc + Number(curr.valor), 0);
+      accumulated += totalMes;
+      return {
+        name: item.nome,
+        poupado: totalMes,
+        meta: item.valor,
+        acumulado: accumulated,
+        metaAcumulada: CRONOGRAMA.filter(c => c.mes <= item.mes).reduce((sum, c) => sum + c.valor, 0)
+      };
+    });
+  }, [lancamentos]);
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-24">
       {/* Background patterns */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-10">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-5">
         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-500 rounded-full blur-[120px]" />
         <div className="absolute top-[60%] -right-[10%] w-[50%] h-[50%] bg-purple-500 rounded-full blur-[150px]" />
       </div>
@@ -210,19 +347,94 @@ export default function App() {
           />
         </section>
 
+        {/* Chart Section */}
+        <section className="mb-12">
+          <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <ChartBar className="w-6 h-6 text-blue-600" />
+                  Evolução do Patrimônio
+                </h2>
+                <p className="text-slate-400 text-sm">Visualização detalhada do seu crescimento financeiro anual</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">
+                  <div className="w-2 h-2 rounded-full bg-blue-600" /> Acumulado
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-400 rounded-lg text-xs font-bold">
+                  <div className="w-2 h-2 rounded-full bg-slate-300" /> Meta
+                </div>
+              </div>
+            </div>
+
+            <div className="h-[350px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorAcumulado" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0.01}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
+                    tickFormatter={(value) => `R$ ${value}`}
+                    dx={-10}
+                  />
+                  <Tooltip 
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: '#e2e8f0', strokeWidth: 2, strokeDasharray: '4 4' }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="acumulado" 
+                    name="acumulado"
+                    stroke="#2563eb" 
+                    strokeWidth={4}
+                    fillOpacity={1} 
+                    fill="url(#colorAcumulado)" 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="metaAcumulada" 
+                    name="metaAcumulada"
+                    stroke="#cbd5e1" 
+                    strokeWidth={2}
+                    strokeDasharray="8 8" 
+                    dot={false}
+                    activeDot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
+
         {/* Main Content */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Months Listing */}
           <div className="lg:col-span-2 space-y-6">
             <h2 className="text-2xl font-bold flex items-center gap-2 mb-4">
-              <ChartBar className="w-6 h-6 text-blue-600" />
+              <Plus className="w-6 h-6 text-blue-600" />
               Cronograma de Metas
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {CRONOGRAMA.map((item, idx) => (
                 <MonthCard 
-                  key={`${item.mes}-${lancamentos.length}`} // Key helps force re-render if needed, though state change should handle it
+                  key={`${item.mes}-${lancamentos.length}`}
                   item={item}
                   lancamentos={lancamentos.filter(l => Number(l.mes) === Number(item.mes))}
                   onAdd={handleAddLancamento}
@@ -233,7 +445,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Sidebar / Settings / Summary */}
+          {/* Sidebar */}
           <aside className="space-y-6">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
               <h3 className="text-xl font-bold mb-4">Painel de Controle</h3>
@@ -307,7 +519,9 @@ export default function App() {
                     onClick={() => {
                       if(confirm('Limpar todos os dados locais?')) {
                         localStorage.removeItem('poupanca_data_cache');
+                        localStorage.removeItem('celebrated_months');
                         setLancamentos([]);
+                        setCelebratedMonths([]);
                         setShowSettings(false);
                       }
                     }}
@@ -321,6 +535,65 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Celebration Modal */}
+      <AnimatePresence>
+        {showCelebrationModal?.show && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-blue-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              className="relative bg-white p-12 rounded-[3rem] shadow-2xl text-center max-w-md w-full"
+            >
+              <div className="w-24 h-24 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trophy className="w-12 h-12" />
+              </div>
+              <h3 className="text-3xl font-black text-slate-900 mb-3">VOCÊ CONSEGUIU! 🎉</h3>
+              <p className="text-slate-500 mb-8 leading-relaxed">
+                A meta de <span className="font-bold text-blue-600">{showCelebrationModal.month}</span> foi batida! Você está cada vez mais perto dos seus sonhos financeiros.
+              </p>
+              <button 
+                onClick={() => setShowCelebrationModal(null)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-200 transition-all transform active:scale-95"
+              >
+                Continuar Poupando
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toasts Container */}
+      <div className="fixed bottom-6 right-6 z-[70] flex flex-col gap-3">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: 20, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, x: 20 }}
+              className={cn(
+                "px-6 py-4 rounded-2xl shadow-lg border flex items-center gap-3 min-w-[280px]",
+                toast.type === 'success' ? "bg-green-50 border-green-100 text-green-700" :
+                toast.type === 'error' ? "bg-red-50 border-red-100 text-red-700" :
+                "bg-white border-slate-100 text-slate-600"
+              )}
+            >
+              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : 
+               toast.type === 'error' ? <XCircle className="w-5 h-5" /> : 
+               <AlertCircle className="w-5 h-5" />}
+              <span className="text-sm font-bold">{toast.message}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -417,7 +690,7 @@ const MonthCard: React.FC<MonthCardProps> = ({ item, lancamentos, onAdd, onDelet
       <div className="flex items-center justify-between mb-4">
         <div>
           <h4 className="text-lg font-bold">{item.nome}</h4>
-          <p className="text-xs text-slate-500">Mês {item.mes}</p>
+          <p className="text-xs text-slate-500">Cronograma {item.mes}</p>
         </div>
         {isCompleted ? (
           <div className="bg-green-500 text-white p-2 rounded-full shadow-lg shadow-green-200">
@@ -516,7 +789,7 @@ const MonthCard: React.FC<MonthCardProps> = ({ item, lancamentos, onAdd, onDelet
       </div>
     </motion.div>
   );
-}
+};
 
 function SummaryItem({ label, value }: { label: string, value: string }) {
   return (
@@ -524,6 +797,27 @@ function SummaryItem({ label, value }: { label: string, value: string }) {
       <span className="text-xs text-slate-500 font-medium">{label}</span>
       <span className="text-xs font-bold text-slate-800">{value}</span>
     </div>
+  );
+}
+
+function AlertCircle(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" x2="12" y1="8" y2="12" />
+      <line x1="12" x2="12.01" y1="16" y2="16" />
+    </svg>
   );
 }
 
